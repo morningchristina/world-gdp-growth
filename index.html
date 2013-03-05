@@ -1,0 +1,1326 @@
+<!doctype html>
+<html>
+<head>
+	<title>World GDP Growth (1961-2011)</title>
+	
+	<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.0/css/bootstrap-combined.min.css" rel="stylesheet">
+	<script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+	<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.0/js/bootstrap.min.js"></script>
+	<script src="http://d3js.org/d3.v3.min.js"></script>
+
+	<script type="text/javascript" src="prettify/prettify.js"></script>
+	<link href="prettify/prettify.css" rel="stylesheet" type="text/css" />
+
+	<style>
+		body {
+			padding: 20px 0;
+			font-family: "HelveticaNeue-Light", "Helvetica Neue Light",
+             "Helvetica Neue", sans-serif;
+      font-weight: 300;
+		}
+		h1, h3 {
+			text-rendering: optimizeLegibility;
+			font-weight: 300;
+		}
+		.header h1, .header h3 {
+			display: inline-block;
+		}
+		noscript {
+			font-size: 2em;
+		}
+		.form-search {
+			padding-top: 15px;
+		}
+		#year-nav {
+			text-align: right;
+			padding-top: 30px;
+			display:inline-block;
+			letter-spacing: 1px;
+		}
+		#the-year {
+			display:inline-block;
+			margin-top: 19px;
+			font-size: 2em;
+		}
+		.year-label {
+			font-size: 1.5em;
+			stroke: none;
+			stroke-size: 0;
+			fill: #444;
+		}
+		.year-nav {
+			fill: steelBlue;
+		}
+		.container {
+			width: 960px;
+		}
+		#footer {
+			text-align: center;
+			padding: 20px 0;
+		}
+		#chart {
+			position: relative;
+		}
+		#info {
+			display: none;
+			position: absolute;
+			background-color: rgba(255,255,255,0.8);
+			overflow: hidden;
+			padding: 4px;
+			left: 40px;
+			bottom: 57px;
+			height: 180px;
+			width: 120px;
+		}
+		#info .divider {
+			margin: 10px 0;
+		}
+		#info .local span.i-country {
+			font-weight: bold;
+		}
+		#instructions {
+			display: none;
+		}
+		#more {
+			text-align: center;
+			padding: 30px;
+			opacity: 0.3;
+		}
+		#about p, #about ul {
+			font-size: 1.2em;
+			line-height: 1.5em;
+			margin-bottom: 1em;
+		}
+		svg {
+     	border:1px solid #ccc;
+     	-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+    }
+    .background {
+    	fill: white;
+    	stroke: none;
+    	stroke-width: 0;
+    }
+    .country {
+    	fill: #f5f5f5;
+      stroke: #fff;
+    }
+    .gdp {
+    	stroke: #fff;
+    	stroke-width: 0.5px; 
+    }
+    #undefined path {
+    	fill: none;
+    	stroke: #c3c3c3;
+    	stroke-width: 1px;
+    	stroke-linejoin: 'miter';
+    	stroke-linecap: 'square';
+    }
+    #undefined .background {
+    	fill: #e4e4e4;
+    	stroke: none;
+    	stroke-width: 0;
+    }
+    #timeline rect {
+    	fill: white;
+    	stroke: none;
+    	stroke-width: 0;
+    	opacity: 0.8;
+    }
+    #timeline path {
+    	stroke: steelBlue;
+    	fill: steelBlue;
+    	stroke-width: 2px;
+    }
+    #timeline .year-marker {
+    	stroke: white;
+    	stroke-width: 1px;
+    	fill: steelBlue;
+    }
+    #timeline .year-tick {
+    	stroke: none;
+    	stroke-width: 0;
+    	fill: white;
+    }
+    #timeline .year-tick-label {
+    	fill: steelBlue;
+    	font-size: 1em;
+    	cursor: pointer;
+    }
+    .locator {
+    	fill: none;
+    	stroke: darkSlateGrey;
+    	stroke-width: 1px;
+    	shape-rendering: crispEdges;
+    	opacity: 0.8;
+    }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>Annual GDP Rate of Growth</h1>
+			<h3>1961-2011</h3>
+			<form class="form-search pull-right">
+			  <div class="input-append">
+			    <input type="text" class="span2 search-query" placeholder="Find a country" data-provide="typeahead" autocomplete="off">
+			    <button type="submit" class="btn">Search</button>
+			  </div>
+			</form>
+		</div>
+		<div id="chart">
+			<script>
+				// 3rd party utilities
+				d3.loadData = function() {
+	        // Source: http://bl.ocks.org/ilyabo/2209220
+	        // To simultaneously loading multiple datasets
+
+	        var loadedCallback = null;
+	        var toload = {};
+	        var data = {};
+	        var loaded = function(name, d) {
+	          delete toload[name];
+	          data[name] = d;
+	          return notifyIfAll();
+	        };
+	        var notifyIfAll = function() {
+	          if ((loadedCallback != null) && d3.keys(toload).length === 0) {
+	            loadedCallback(data);
+	          }
+	        };
+	        var loader = {
+	          json: function(name, url) {
+	            toload[name] = url;
+	            d3.json(url, function(d) {
+	              return loaded(name, d);
+	            });
+	            return loader;
+	          },
+	          csv: function(name, url) {
+	            toload[name] = url;
+	            d3.csv(url, function(d) {
+	              return loaded(name, d);
+	            });
+	            return loader;
+	          },
+	          onload: function(callback) {
+	            loadedCallback = callback;
+	            notifyIfAll();
+	          }
+	        };
+	        return loader;
+	      };
+
+				function objectify(list, values) {
+					// Source: http://underscorejs.org/
+					
+					// Converts lists into objects. Pass either a single array of [key, value]
+  				// pairs, or two parallel arrays of the same length -- one of keys, 
+  				// and one of the corresponding values.
+
+			    if (list == null) return {};
+			    var result = {};
+			    for (var i = 0, l = list.length; i < l; i++) {
+			      if (values) {
+			        result[list[i]] = values[i];
+			      } else {
+			        result[list[i][0]] = list[i][1];
+			      }
+			    }
+			    return result;
+			  };
+
+			  function makeRange(from,to) {
+			  	// Generate a range of numbers inclusive
+			  	var r = new Array();
+			  	for ( var i = from; i <= to; i++ ) {
+			  		r.push(i);
+			  	}
+			  	return r;
+			  }
+
+			  // begin charting
+
+			  // state
+				var year = 1986,
+						country,
+						centered;
+
+				var w = 960,
+        		h = 500,
+        		timelineXMargin = 40;
+        		timelineYMargin = 30;
+
+        // chart components
+        var data,
+        		gdp,
+        		timeline,
+        		timeRange,
+        		locator,
+        		legend;
+
+       	var growthIn,
+       			countryGrowthMap,
+						countryCodesMap;
+
+        var projection = d3.geo.mercator()
+		        .translate([480, 300])
+		        .scale(960);
+
+		    var path = d3.geo.path()
+        		.projection(projection);
+
+        var color = d3.scale.linear()
+				    .domain([-8, 0, 8])
+				    .range(["#de1f2e", "#e4e4e4", "#0ca454"]);
+
+				// growthIn is initalized once the data is loaded
+
+       	var growthLabel = function(d,y) {
+       		var growth = growthIn(d.id,y);
+					if (typeof growth === 'undefined' || growth.length == 0 ) {
+						return d.properties.name + ": " + "Unavailable"
+					}
+       		return d.properties.name + ": " 
+       			+ String(Number(growthIn(d.id,y)).toFixed(1)) 
+       			+ "%";
+       	}
+
+       	var growthColor = function(d,y) {
+       		var growth = growthIn(d.id,y);
+					if (typeof growth === 'undefined' || growth.length == 0 ) {
+						return "url(#undefined)"; // webkit doesn't handle patterns well
+						//return '#e4e4e4';
+					}
+					return color(Number(growth).toFixed(1));
+       	}
+
+       	// line for the year plot at the bottom of the chart
+
+       	var tx = d3.scale.linear()
+    				.range([timelineXMargin, w-timelineXMargin]);
+
+    		var xAxis = d3.svg.axis()
+				    .scale(tx)
+				    .orient("bottom");
+
+				var tline = d3.svg.line()
+    				.x(function(d) { return tx(d); })
+    				.y(function(d) { return h - timelineYMargin; });
+
+				// getting to the map itself
+
+        var svg = d3.select("#chart").append("svg")
+        		.attr("width", w)
+        		.attr("height", h);
+
+        // striped pattern for unavailable data
+
+        var naPattern = svg.append('pattern')
+        		.attr('id', 'undefined')
+        		.attr('patternUnits', 'userSpaceOnUse')
+        		.attr('x', 0)
+        		.attr('y', 0)
+        		.attr('width', 4)
+        		.attr('height', 4);
+        naPattern.append('rect')
+      			.attr('class','background')
+      			.attr('x', 0)
+        		.attr('y', 0)
+        		.attr('width', 4)
+        		.attr('height', 4);
+        naPattern
+        		.append('path')
+        		.attr('d', 'M 0 4 4 0');
+
+        // background to capture stray clicks for zoom out
+
+        svg.append("rect")
+				    .attr("class", "background")
+				    .attr("width", w)
+				    .attr("height", h)
+				    .on("click", mapdblclick);
+
+			 	// the primary data grouping
+
+				var g = svg.append('g').attr('id','countries');
+
+				d3.loadData()
+		      .json('countries', 'world-countries.json')
+		      .csv('codes', 'country-codes.csv')
+		      .csv('gdp', 'world-gdp-growth.csv')
+		      .onload(function(thegoods) {
+		      	data = thegoods;
+
+						countryGrowthMap = createCountyGrowthMap(data.gdp)
+						countryCodesMap = createCountryCodesMap(data.codes);
+						growthIn = function(country,year) {
+							return countryGrowthMap(countryCodesMap(country),year);
+						} 
+						
+						timeRange = makeRange(1961,2011); // temp hardcoded
+						tx.domain(d3.extent(timeRange, function(d) { return d; }));
+
+						// the map - yup, that's it
+
+						gdp = g.selectAll('.gdp')
+								.data(data.countries.features)
+								.enter().append("path")
+									.attr('id', function(d) { return d.id; })
+									.attr('class','gdp')	
+									.attr('fill', function(d) { return growthColor(d,year); })
+									.attr('stroke', '##fff')
+									.attr("d",path)
+									.on("click", mapclick)
+									.on("dblclick", mapdblclick)
+									.append("title")
+										.text(function(d) { return growthLabel(d,year); });
+
+						// the timeline
+
+						timeline = svg.append('g')
+								.attr('id','timeline')
+								.attr('style','z-index:99;');
+						
+						timeline.append('rect')
+					 			.attr('x',0)
+					 			.attr('y',h - timelineYMargin )
+					 			.attr('width',w)
+					 			.attr('height',timelineYMargin);
+
+						timeline.append('path')
+								.attr('d',tline(timeRange));
+
+						var tgs = timeline.selectAll('.year-marker')
+								.data(timeRange)
+								.enter().append('g')
+									.attr('class','year-group')
+									.attr('id', function(d) { return 'year'+String(d); })
+									.on("click",timeclick);
+
+						tgs.append("circle")
+								.attr('class','year-marker')
+								.attr("cx", function(d) { return tx(d); }) 
+								.attr("cy", function(d) { return h-timelineYMargin; }) 
+								.attr("r",4);
+								
+						tgs.filter(function(d,i) { return (d%5); })
+								.append('circle')
+									.attr('class','year-tick')
+									.attr("cx", function(d) { return tx(d); }) 
+									.attr("cy", function(d) { return h-timelineYMargin; }) 
+									.attr("r",2);
+
+						timeline.selectAll('.year-tick-label')
+								.data(timeRange.filter(function(d){ return !(d%5) && !(d==1985); }))
+								.enter().append("text")
+									.attr('class','year-tick-label')
+									.attr('text-anchor','middle')
+									.attr("x", function(d) { return tx(d); }) 
+									.attr("y", function(d) { return h-timelineYMargin+20; }) 
+									.on("click",timeclick)
+									.text(function(d){ 
+										if ( d%100==0 ) return String(d);
+										return "'"+String(d).slice(2); 
+									});
+
+						timeline.selectAll(".year-group") 
+								.on("mouseover", function(d){
+									d3.select(this).select('.year-marker') 
+										.transition() 
+										.attr("r",6);
+								})
+								.on("mouseout", function(d){
+									var r = d3.select(this).classed('selected') ? 6 : 4;
+									d3.select(this).select('.year-marker') 
+										.transition() 
+										.attr("r",r);
+								});
+
+						timeline.select('#year'+String(year))
+								.classed('selected',true)
+								.select('.year-marker')
+									.style('fill','#2e5270')
+									.attr('r',6);
+
+						timeline.append('text')
+								.text(String(year))
+								.attr('class','year-label')
+								.attr("text-anchor", "middle")
+								.attr('x',w/2)
+								.attr('y',h-50);
+
+						// would be lovely to know the length of the strings in advance
+
+						timeline.append('a')
+								.attr('xlink:href','#')
+								.attr('id','previous-year')
+								.attr('class','year-nav')
+								.on('click',navigatePrevious)
+								.append('text')
+									.attr("text-anchor", "end")
+									.text('Previous')
+									.attr('x',w/2+5)
+									.attr('y',h-10);
+
+						timeline.append('a')
+								.attr('xlink:href', '#')
+								.attr('id','next-year')
+								.attr('class','year-nav')
+								.on('click',navigateNext)
+								.append('text')
+									.attr("text-anchor", "start")
+									.text('Next')
+									.attr('x',w/2+15)
+									.attr('y',h-10);
+
+						// locator from search
+
+						locator = g.append('g')
+								.attr('class','locator');
+
+						locator.append('svg:line')
+								.attr('transform','translate(-10,0)')
+								.style("stroke-dasharray", ("3, 3"))
+								.attr('class','x-loc')
+								.attr("x1", 0)
+						    .attr("y1", 0)
+						    .attr("x2", 0)
+						    .attr("y2", h);
+
+						locator.append('svg:line')
+								.attr('transform','translate(0,-10)')
+								.style("stroke-dasharray", ("3, 3"))
+								.attr('class','y-loc')
+								.attr("x1", 0)
+						    .attr("y1", 0)
+						    .attr("x2", w)
+						    .attr("y2", 0);
+
+						// the legend
+
+						var growthPoints = makeRange(-8,8);
+						var ly = h-timelineYMargin-30; // 30
+						var lc = 750;
+
+						legend = g.append('g') // svg
+								.attr('class','legend');
+
+						legend.append('rect')
+								.attr('fill','white')
+								.style('opacity',0.8)
+								.attr('x',lc-120)
+								.attr('y',ly-25)
+								.attr('width',300)
+								.attr('height',50);
+						legend.selectAll('.growth-points')
+								.data(growthPoints)
+								.enter().append('rect')
+									.attr('x',function(d) { return lc + d*10; })
+									.attr('fill',function(d) { return color(d); })
+									.attr('y',ly)
+									.attr('width',9)
+									.attr('height',10);
+						legend.append('text')
+								.attr('x',lc-80)
+								.attr('y',ly-9)
+								.attr('text-anchor','start')
+								.text('Rate of growth');
+						legend.append('text')
+								.attr('x',lc-85)
+								.attr('y',ly+9)
+								.attr('text-anchor','end')
+								.style('font-size','0.9em')
+								.text('- 8%');
+						legend.append('text')
+								.attr('x',lc+95)
+								.attr('y',ly+9)
+								.attr('text-anchor','start')
+								.style('font-size','0.9em')
+								.text('+ 8%');
+						legend.append('rect')
+								.attr('fill','url(#undefined)')
+								.attr('x',lc+135)
+								.attr('y',ly)
+								.attr('width',10)
+								.attr('height',10);
+						legend.append('text')
+								.attr('x',lc+150)
+								.attr('y',ly+9)
+								.text('n/a');
+
+					 	// prep typeahead for country search
+					 	// really we want to map this from the visible countries 
+					 	// to the country codes to the country names
+
+					 	$('.search-query').typeahead({
+					 		source: data.codes.map(function(d) { return d.name; })
+					 	});
+
+					 	// update the info display
+
+						updateGlobalInfo(year);
+						updateCountryInfo(country,year);
+						d3.select('#info').style('display','block');
+
+						// but lets show some instructions, shall we?
+
+						$('.i-country-gdp').text($('#instructions').text());
+					 	
+					 			
+				}); // end d3.loadData
+
+				function timeclick(d) {
+					transitionToYear(year=d);
+					return false;
+				}
+
+				function mapclick(d) {
+					var countryCode = countryCodeRecordForProperty('2code',d.id);
+					updateCountryInfo(countryCode?countryCode:undefined,year);
+				  country = countryCode;
+				}
+
+				function mapdblclick(d) {
+				  // Source: http://bl.ocks.org/mbostock/2206590
+				  
+				  // why is the adjustment 120/60 necessary? ~20-25% of translation
+				  var x = 0,
+				      y = 0,
+				      k = 1;
+
+				  if (d && centered !== d) {
+				    var centroid = path.centroid(d);
+				    x = -centroid[0] + 120;
+				    y = -centroid[1] + 60;
+				    k = 4;
+				    centered = d;
+				  } else {
+				    centered = null;
+				  }
+
+				  d3.select('#countries').selectAll(".gdp")
+				      .classed("active", centered && function(d) { return d === centered; });
+
+				  d3.select('#countries')
+				  		.transition()
+				      .duration(1000)
+				      .attr("transform", "scale(" + k + ")translate(" + x + "," + y + ")");
+
+				  country = d ? countryCodeRecordForProperty('2code',d.id) : undefined;
+				  updateCountryInfo(country?country:undefined,year);
+				}
+
+				function navigatePrevious() {
+					if ( year-1 < timeRange[0] ) return;
+					transitionToYear(--year);
+					return false;
+				}
+
+				function navigateNext() {
+					if ( year+1 > timeRange[timeRange.length-1] ) return;
+					transitionToYear(++year);
+					return false;
+				}
+
+				function createCountryCodesMap(codes) {
+					var code2 = codes.map(function(c){ return c['2code'] });
+					var code3 = codes.map(function(c){ return c['3code'] });
+					var hash = objectify(code2,code3);
+					return function(c2) {
+						return hash[c2];
+					}
+				}
+
+				function createCountyGrowthMap(growth) {
+					var code3 = growth.map(function(c){ return c['Country Code'] });
+					var hash = objectify(code3,growth);
+					return function(c3,year) {
+						if ( typeof hash[c3] === 'undefined' ) {
+							return undefined;
+						}
+						if ( typeof year == 'undefined' ) {
+							return hash[c3];
+						}
+						return hash[c3][year];
+					}
+				}
+
+				// interface
+
+				function transitionToYear(y) {
+					// delay the map transition to set a starting value for undefined
+					// fills. otherwise the pattern is replaced by black first
+					// webkit flickers when transitioning from pattern to pattern
+					
+					function colorCheck() {	
+						if ( d3.select(this).attr('fill') == 'url(#undefined)' ) {
+							d3.select(this).attr('fill', '#e4e4e4');
+						}
+					}
+
+					g.selectAll('.gdp')
+						.transition().delay(1).duration(1000)
+						.each("start", colorCheck)
+						.attr('fill', function(d) { return growthColor(d,y); });
+					g.selectAll('.gdp')
+						.select('title')
+						.text(function(d) { return growthLabel(d,y); });
+
+					timeline.select('.selected')
+						.classed('selected',false)
+						.select('.year-marker')
+							.transition().delay(1).duration(1000)
+							.style('fill','steelBlue')
+							.attr('r',4);
+					timeline.select('#year'+String(y))
+						.classed('selected',true)
+						.transition().delay(1).duration(1000)
+						.select('.year-marker')
+							.style('fill','#2e5270')
+							.attr('r',6);
+					timeline.select('.year-label')
+						.transition()
+						.duration(1000)
+						.text(String(year));
+
+					updateGlobalInfo(y);
+					updateCountryInfo(country,y);
+				}
+
+				$('.form-search').submit(function() {
+					var countryCode = countryCodeRecordForProperty('name',
+						$('.search-query').val());
+					if ( country == countryCode && typeof country !== 'undefined' ) {
+						// on 2nd+ search for same item, zoom in and out
+						mapdblclick(featuresForCountry(countryCode['2code']));
+					}
+					revealCountry(countryCode);
+					return false;
+				});
+
+				$('.search-query').on('change', function (e) { 
+					var countryCode = countryCodeRecordForProperty('name',this.value);
+					revealCountry(countryCode);
+					return false;
+				});
+
+				function revealCountry(countryCode) {
+					var x,y,opacity;
+					
+					var features = countryCode ? featuresForCountry(countryCode['2code'])
+						: undefined;
+					
+					if ( typeof countryCode === 'undefined' ) {
+						// clear the selection
+						x = y = -10;
+						opacity = 0;
+					}
+					else if ( typeof features === 'undefined' ) {
+						// show an error
+						console.log("no features for ", name);
+					} else {
+						// center on the country
+						var centroid = path.centroid(features);
+				    x = centroid[0];
+				    y = centroid[1];
+				    opacity = 0.8;
+					}
+
+					if ( typeof x !== 'undefined' ) {
+						d3.select('.x-loc')
+				    	.transition()
+				    	.duration(1000)
+				    	.attr('transform','translate('+x+',0)')
+				    	.style('opacity',opacity);
+				    d3.select('.y-loc')
+				    	.transition()
+				    	.duration(1000)
+				    	.attr('transform','translate(0,'+y+')')
+				    	.style('opacity',opacity);
+				   }
+
+				   updateCountryInfo(countryCode?countryCode:undefined,year);
+				   country = countryCode;
+				}
+
+				function countryCodeRecordForProperty(property,value) {
+					var country = undefined;
+					if ( typeof value !== 'undefined' ) {
+						for ( var i = 0; i < data.codes.length; i++ ) {
+							if ( data.codes[i][property] == value ) {
+								country = data.codes[i];
+								break;
+							}
+						}
+					}
+					return country;
+				}
+
+				function featuresForCountry(code) {
+					var features = undefined;
+					if ( typeof code !== 'undefined' ) {
+						for ( var i = 0; i < data.countries.features.length; i++ ) {
+							if ( data.countries.features[i].id == code ) {
+								features = data.countries.features[i];
+								break;
+							}
+						}
+					}
+					return features;
+				}
+
+				function updateGlobalInfo(y) {
+					var growth = String(Number(countryGrowthMap('WLD',y)).toFixed(1));
+					$('.i-year').text("Year: "+String(y));
+					$('.i-global-gdp').text("Global GDP: "+growth+"%");
+				}
+
+				function updateCountryInfo(c,y) {
+					if ( typeof c === 'undefined' ) {
+						// not displaying a country
+						$('.i-country').text('');
+						$('.i-country-gdp').text('');
+						$('.i-country-mean').text('');
+						$('.i-period').text('');
+					} else {
+						var record = countryGrowthMap(c['3code']);
+						var allyears = record ? availableDataForCountry(record) : [];
+						if ( typeof record === 'undefined' || allyears.length == 0 ) {
+							// no gdp data available
+							$('.i-country').text(c.name);
+							$('.i-country-gdp').text('No data available');
+							$('.i-country-mean').text('');
+							$('.i-period').text('');
+						} else {
+							// data for country
+							var growth = record[y];
+							if (typeof growth === 'undefined' || growth.length == 0 ) {
+								growth = 'n/a';
+							} else {
+								growth = String(Number(growth).toFixed(1)) + "%";
+							}
+							
+							extent = d3.extent(allyears, function(d) { return d.year; });
+							mean = d3.mean(allyears, function(d) { return d.growth; });
+							mean = mean.toFixed(1);
+
+							$('.i-country').text(record['Country Name']);
+							$('.i-country-gdp').text("GDP: "+growth);
+							$('.i-country-mean').text('Mean: '+mean+"%");
+							$('.i-period').text('('+extent[0]+'-'+extent[1]+')');
+						}
+					}
+				}
+
+				function availableDataForCountry(record) {
+					var available = [];
+					for (var property in record) {
+						if ( !record.hasOwnProperty(property) )
+							continue;
+						if ( isNaN(Number(property)) )
+							continue;
+						if ( record[property].length == 0 )
+							continue;
+						if ( isNaN(Number(record[property])) )
+							continue;
+						available.push({
+							year: property,
+							growth: record[property]
+						});
+					}
+					return available;
+				}
+
+			</script>
+			<noscript>
+				This bit of deliciousness requires JavaScript
+			</noscript>
+			<!-- overlay an html info area upon the graph. svg doesn't handler
+					 text wrapping so well, and I stuggled to get foreignObjects
+					 working -->
+			<div id="info">
+				<div class="global">
+					<span class="i-year"></span><br>
+					<span class="i-global-gdp"></span><br>
+				</div>
+				<div class="divider"></div>
+				<div class="local">
+					<span class="i-country"></span><br>
+					<span class="i-country-gdp"></span><br>
+					<span class="i-country-mean"></span><br>
+					<span class="i-period"></span>
+				</div>
+			</div>
+		</div> <!-- end chart -->
+		<div id="instructions">
+			Select a year to see changes. 
+			Click a country to see its growth.
+			Double click to zoom.
+		</div>
+		<div id="more">
+			<i class="icon-arrow-down"></i>
+		</div>
+		<div id="about">
+			<h3>About the visualization</h3>
+			<p>
+				The map visualizes GDP growth rates for the world from 1961 to 2011.
+				Positive growth is represented as increasingly dark shades of green and 
+				negative growth as shades of red. The timeline makes it possible to
+				view changes in growth from one year to the next or more casually.
+
+				Significant historical events are clearly visible in the changes:
+				the Mideast oil boom of the 70s, the Iranian revolution, and recession
+				in the 80s. The disollution of the Soviet Union produces a marked effect
+				on the graph. 
+
+				More easily missed but still visible are the Asian currency crisis of 
+				1998 and the South American crisis of 1999, as well as the recent, 
+				persistent strength of China and India. And of course, the impact of
+				the 2008 financial crisis is indicated powerfully when global GDP growth 
+				is negative the next year for the first time since at least 1961.
+			</p>
+			<p>
+				Data sources are cited <a href="#datasources">below</a>.
+			</p>
+
+			<h3>Motivation</h3>
+			<p>
+				Over the last few years as I have gravitated towards web development
+				and away from desktop application development I have been continually
+				impressed by the quality of design on the web and the capabilities of
+				JavaScript as a programming language.
+
+				It seems like the best minds in the industry are focusing their creative
+				efforts into making amazing, beautiful artifacts for our web browsers
+				and that web browsers have just about caught up to their efforts.
+
+				The quality and quantity of innovation is astonishing, both in the 
+				production of reusable code and in the use of web standards.
+			</p>
+			<p>
+				I want to be a part of this. How could I not? To participate in 
+				web development's Renaissance as its Renaissance man, that
+				elusive combination of designer and developer whose craft is equal parts 
+				code and art, is a worthy pursuit. 
+
+				In just the last month I was fortunate to come across a JavaScript library
+				called <a href="http://www.d3js.org">D3</a> that combines design and 
+				development in one of the most elegant APIs I have ever seen. If ever
+				there were a library to aid me in that endeavor, this was it.
+			</p>
+			<p>
+				D3 is a data visualization library created by 
+				<a href="http://bost.ocks.org/mike/">Mike Bostock</a>, who must be a genius. 
+				If you followed the New York Times 2012 election coverage at all, you 
+				probably saw his handiwork, for example in the <a href="http://www.nytimes.com/interactive/2012/11/02/us/politics/paths-to-the-white-house.html">Paths to the White House</a> interactive graphic.
+
+				I required the library to chart light values over time for an animal tracking software project I am working on, but it turns out that folks are using D3 to create all manner 
+				of breathtaking graphics. Once I had satisfied the library's rather
+				steep learning curve, I set to looking for a more complex visualization
+				to try my hands on. I settled on worldwide GDP growth by country.
+			</p>
+
+			<h3>Putting it together</h3>
+			<h5>Starting with data</h5>
+			<p>
+				D3 creates data-driven visualizations. It works by binding data to a 
+				selection of
+				elements on a web page, including SVG tags, and then associating
+				transitions with that data. Given the data, bindings, and associations, D3
+			  automatically creates and modifies the content of a web page. You
+				provide the data and declare the visualization, D3 does the rest.
+			</p>
+			<p>
+				I required two datasets. The first came from sample code and provided
+				polygonal mappings of nations on a Mercator projection. This would
+				permit me to draw the map. The second was actual GDP data.
+				The advantage of working with economic data is that it is plentiful and
+				accessible. The World Bank provides a large set of economic data for
+				aspiring visualizers, including GDP.
+				
+				For this graphic I needed to combine the GDP data with the polygonal. 
+				For each polygon, I wanted to fill it with a color
+				that indicated the rate of growth. In D3 this meant 
+				that I would bind each polygon to an SVG path element and then look up 
+				its fill color by mapping from the growth rate via a color scale.
+			</p>
+			<p>
+				The common element relating the two datasets was the country code, a
+				standardized two or three character representation. In my case, the
+				polygonal dataset used a two character representation and the World Bank
+				data three characters. I needed a way to convert from one to the other.
+				Wikipedia provides the ISO reference sheet that includes both, so I wrote
+				a small Ruby script to extract the information from their webpage and 
+				push it into a CSV file.
+			</p>
+			<h5>Setting up the visuals</h5>
+			<p>
+				The first step in the visualization itself is preparing the map projection 
+				and setting up the function that will create the SVG path from the polygon.
+				D3 makes this simple if you are providing GeoJSON data, which is the format
+				of the polygonal data.
+			</p>
+			<p>
+				<pre class="prettyprint lang-js">
+var projection = d3.geo.mercator()
+  .translate([480, 300])
+  .scale(960);
+
+var path = d3.geo.path()
+  .projection(projection);</pre>
+			</p>
+			<p>
+				For the colors I must set up a scale that maps a GDP number into a color
+				space. Again D3 makes this a snap, even allowing me to specify a polylinear
+				scale for diverging values. I can then pass a number to the function and get
+				back an interpolated color.
+			<p>
+				<pre class="prettyprint lang-js">
+var color = d3.scale.linear()
+  .domain([-8, 0, 8])
+  .range(["#de1f2e", "#e4e4e4", "#0ca454"]);</pre>
+			</p>
+			<h5>Drawing the map</h5>
+			<p>
+				Once I have these functions set up it is astonishingly straightforward to
+				draw the map with the right color values.
+
+				To be fair there is a bit of additional setup involved that I am 
+				skimming over. I need to load the data from the three sources. I must compose
+				a function to convert two character codes to three character codes
+				and another to look up the GDP data for a given year. But this is
+				simple enough.
+
+				The really amazing work happens in just a dozen lines of code that use
+				the D3 library.
+			</p>
+			<p>
+				<pre class="prettyprint lang-js">
+var gdp = g.selectAll('.gdp')
+  .data(data.countries.features)
+  .enter().append("path")
+    .attr('id', function(d) { return d.id; })
+    .attr('class','gdp')  
+    .attr('fill', function(d) { return growthColor(d,year); })
+    .attr('stroke', '##fff')
+    .attr("d",path)
+    .on("click", mapclick)
+    .on("dblclick", mapdblclick)
+    .append("title")
+      .text(function(d) { return growthLabel(d,year); });</pre>
+			</p>
+			<p>
+				That's it. No, seriously. That bit of code right there draws the entire
+				world map and fills each country with a color that corresponds to its
+				rate of growth for a given year. Easy, right? It took me a 
+				few weeks to really understand what is going on there. Let's pull it apart.
+			</p>
+			<p>
+				The code begins with a D3 selection. This prepares a data binding by specifying
+				which page elements the binding should target. It uses a CSS selector to
+				target elements of class <i>gdp</i>. At this point there are none, so D3
+				returns an empty selection that we can operate on. The next step binds
+				the data, an array of polygon "features". At this point D3 now knows that every <i>gdp</i> page element is related to some country's polygonal data.
+			</p>
+			<p>
+				The <i>enter</i> method is a kind of iterator that loops through every
+				object in our polygonal features array. <i>Append</i> then creates an SVG 
+				<i>path</i> element for each polygon, which we can set up any way we
+				like. This includes setting attributes and attaching event handlers. Because the
+				attributes may depend on the data object (polygon) for that path element,
+				D3 gives us the option of passing a function as a paramter to our method
+				calls. D3 will then call that function, passing in the polygon object bound
+				to that element. This object contains the
+				two country code which is used to look up the fill color for that country.
+			  Finally, to actually draw the polygon, I simply pass the previously set 
+			  up <i>path</i> method to the <i>d</i> attribute, which is the SVG 
+			  property that contains the path data, itself automatically generated by
+			  D3 from our features dataset.
+			</p>
+
+			<h5>Transitions</h5>
+			<p>
+				As if that weren't already amazing, D3 also enables damningly simple
+				transitions. For this visualization, rather than changing the GDP colors
+				for every country instantaneously when selecting a new year, I wanted to
+				fade from one color to the next. D3 provdes a transition function that
+				automatically interpolates values from the current state to a target. It 
+				can handle color values as well as numeric values and can target a range
+				of attributes such as position, radius, scale and fill. Simply insert it
+				before setting the new value:
+			</p>
+			<p>
+				<pre class="prettyprint lang-js">
+g.selectAll('.gdp')
+  .transition().delay(1).duration(1000)
+  .each("start", colorCheck)
+  .attr('fill', function(d) { return growthColor(d,y); });
+g.selectAll('.gdp')
+  .select('title')
+  .text(function(d) { return growthLabel(d,y); });</pre>
+			</p>
+			<p>
+				Here I'm selecting the <i>gdp</i> elements on the page, which are the SVG
+				paths I set up above, I'm specifying a transition and a starting color 
+				(which improves transitions from patterns, more below), and then I'm
+				setting a new fill color depending on the country and the year.
+			</p>
+
+			<h5>Filling in the details</h5>
+			<p>
+				At this point I've spent an afternoon on the visualization. It's nice, but
+				it's missing important information and behavior. There is no legend,
+				I'd like to support zoom, I want to show relevant data when the 
+				user selects a country, and the graph needs a way to select a year.
+
+				The code required for most of this isn't difficult once you
+				understand D3 selections and data bindings. Bindings work on an array
+				of data, so if you can represent your information as an array you can quickly
+				visualize it with D3. This was the approach I took for the timeline and
+				the legend. The timeline is just an array of numbers which I've instructed D3 to
+				draw as circles, and the legend is an array of numbers from -8 to +8 
+				which I have D3 draw as squares.
+			</p>
+			<p>
+				The more interesting work at this point are the design decisions involved.
+				First I need to represent missing data. Yearly GDP data
+				is not always available for a country, and this must be indicated visually
+				on the map. I decided on a diagonal line pattern which I can both build
+				and use with the D3 library. 
+
+				The meaning of the pattern and GDP colors
+				then needed to be indicated in a legend. I chose the bottom right
+				corner underneath Australia after trying both the top right and bottom
+				left corners. However, unlike the timeline and detail panel on the left, 
+				I allow the legend to fall away when the user zooms in on a country. 
+				Once the legend is understood it isn't necessary, and keeping it off
+				the map when zooming prevents clutter.
+			</p>
+			<p>
+				<img src="legend.png" alt="Legend">
+			</p>
+			<p>
+				Combatting clutter was the most difficult aspect of rest of the design. 
+				For the details panel the bottom left was clearly
+				the best choice. When the map is not zoomed, the text is unobtrusive, and
+				when it is zoomed, for many countries that area of the page continues to
+				be unoccupied. Otherwise a slightly transparent white background that is
+				normally invisible distinguishes the text from the surrounding content.
+			</p>
+			<p>
+				The timeline, on the other hand, was not so painless. The timeline must
+				encode a great deal of information in a small amount of space for only 
+				requiring 50 datapoints. Each year must be indicated, tick marks and labels
+				must communicate the scale, and the timeline must visually indicate the 
+				currently selected year. I think the circles along the line work well
+				with full circles every five years, labels underneath and a larger, slightly
+				darker circle for the current year. The cursor
+				and animation indicate that years can be selected, in addition to the
+				instructions that are provided on the left at the outset.
+
+				To prevent clutter, the timeline requires only 36 pixels, and it also has
+				a slightly transparent white background to distinguish it from surrounding
+				content when the map is zoomed.
+			</p>
+			<p>
+				<img src="timeline.png" alt="Legend">
+			</p>
+
+			<h5>Search, select, zoom</h5>
+			<p>
+				It should be possible to access the GDP data for a specific country. 
+				Hovering over a country reveals the current GDP, but retaining that information
+				and providing context is appropriate.
+
+				Consequently, when a user selects a country the details panel shows the
+				currently selected year's GDP growth for it as well as the historical
+				mean. The historical mean provides context in time while the global GDP
+				rate and the ability to hover over another country for its information
+				provide contemporaneous context.
+			</p>
+			<p>
+				Double-clicking a country zooms in on it. D3 supports zooming as well, which
+				can be accomplished automatically for charts with axes. Extra effort is
+				necessary for a map. The code locates the center of the polygon which
+				has been clicked and manually applies a scale and translation transform
+				to the entire map in order to focus on it. Once again, D3 handles the details:
+			</p>
+			<p>
+				<pre class="prettyprint lang-js">
+d3.select('#countries')
+  .transition()
+  .duration(1000)
+  .attr("transform", "scale(" + k + ")translate(" + x + "," + y + ")");</pre>
+  		<p>
+  			Here, <i>x</i> and <i>y</i> are the center points the graph will move
+  			to and <i>k</i> is a scaling constant.
+  		</p>
+  		<p>
+  			Search presented the most difficult decisions. How should the
+  			results be visually indicated? Or the result. The first decision
+  			was to only reveal a single country and to use typeahead to suggest
+  			countries. And then what? I could draw attention to the country
+  			by highlighting it with a darker fill or a thicker border, but the effect
+  			wasn't striking enough for smaller countries and didn't always
+  			look good with larger ones.
+
+  			I could use a pinging circle like you often see in mobile maps
+  			applications to show the phone's location, but I didn't want the 
+  			effect to keep drawing attention to itself either. The location of an
+  			individual country isn't the point of the map; global GDP rates are.
+  		</p>
+  		<p>
+  			I settled on a sort of targeting visual. When the user presses the return
+  			key on a typehead suggestion, a horizontal and a vertical line emerge
+  			from the sides of the map and converge on the country's center. 
+  			When the user deletes the text in the search field
+  			and presses return again, the targeting lines disappear. This latter
+  			behavior is not apparent and could be improved. 
+  		</p>
+  		<p>
+  			I do, however, think
+  			the double-return is a nice touch. On the first return, the lines appear,
+  			and on the second return the map zooms to those coordinates. Press 
+  			return again and the map zooms back out. When you are zoomed in
+  			and search for a different country, again, the single return re-targets
+  			the lines and a second return causes the map to slide to the new
+  			coordinates. This makes it possible to navigate from country to
+  			country without ever using the mouse. And although the behavior is in a
+  			sense hidden from the user, it's a delightful experience to discover it.
+  		</p>
+
+			<h5>Room for improvement</h5>
+			<p>
+				The entire effort required three afternoons. 
+				I've reached a stopping point I think I can be proud of, but the map is
+				not complete, and there are outstanding issues. From the perspective of
+				the data, most significantly, countries 
+				are born, die, and break up, and the map doesn't indicate this at all. 
+				It is also possible for growth rates to exceed the scale shown in the
+				legend. 8% is not the highest rate of growth. The meaning of the 
+				additional colors is clear, but I wonder if it isn't bad design to have 
+				a legend that does not cover the data possibilities completely. Less
+				critically, centers are not always what you expect them to be, e.g. with
+				the United States.
+			</p>
+			<p>
+				Considering the implementation, browser performance varies. 
+				They're so close but they aren't all the way there yet. Chrome
+				performs perfectly. Webkit has trouble rendering patterns,
+				particularly during animations, and stray lines appear in
+				unexpected places. Firefox handles the visualization wonderfully
+				but trips up when it comes to zooming. I honestly don't know what it looks
+				like on IE.
+			</p>
+			<p>
+				The code was clean and consise until it came to adding search.
+				I must have been tired, but of my three datasets (polygons, country codes, and GDP),
+				I used a different source for the typehead suggestions than I did for rendering
+				the map. I end up having to convert back and forth between the sources
+				to get the right bit of data, depending on what the user is doing. This
+				is totally unnecessary. I could join the datasets in memory after loading
+				them and use a unified representation for the graph, or I could simply use
+				the same source for searching and rendering. Either way, a refactoring is
+				in order.
+			</p>
+
+			<h3>Up, D3 and away!</h3>
+			<p>
+				This has been the most exciting personal project I have worked on in some
+				time. D3 is incredible. The code is beatiful, and the visualizations people
+				are building with it are stunning. I'm excited to have taken the first
+				baby steps into a community of talented, creative programmers and designers
+				who are revealing information and relationships in new ways. The experience
+				of seeing information and understanding anew is ecstatic and joyful.
+				The moment I connected that last bit of code to convert a GDP number to a color
+				and ran the visualization to actually see the whole thing work for the first time,
+				I laughed out loud, jumped out of my chair and ran out of my office to show
+				a colleague.
+			</p>
+			<p>
+				Yeah, it's that fun and that cool.
+			</p>
+
+			<hr>
+			<a name="datasources"></a>
+			<h3>Data sources</h3>
+			<p>
+				Worldwide GDP Growth Rates:<br>
+				<a href="http://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG">The World Bank</a>
+			</p>
+			<p>
+				Polygonal Paths for Countries:<br>
+				Referenced by <a href="http://bl.ocks.org/ilyabo/2209220">ilyabo's flow of refugees projection</a>, found at a <a href="https://github.com/enjalot/adventures_in_d3">github/enjalot</a>, original source unknown.
+			</p>
+			<p>
+				Country Codes Conversion Table, ISO 3166-1:<br>
+				<a href="http://en.wikipedia.org/wiki/ISO_3166-1">Wikipedia</a>
+			</p>
+
+			<h3>Data used in this visualization</h3>
+			<p>
+				Polygonal path information for countries worldwide:<br>
+				<a href="world-countries.json">world-countries.json</a>
+			</p>
+			<p>
+				Worldwide GDP growth in csv format:<br>
+				<a href="world-gdp-growth.csv">world-gdp-growth.csv</a>
+			</p>
+			<p>
+				Country codes ISO 3166-1 in csv format:<br>
+				<a href="country-codes.csv">country-codes.csv</a>
+			</p>
+			<p>
+				Extracted country code data from Wikipedia:<br>
+				<a href="country-codes.html">country-codes.html</a>
+			</p>
+			<p>
+				Ruby conversion script:<br>
+				<a href="process_codes.rb">process_codes.rb</a>
+			</p>
+
+			<h3>Open source</h3>
+			<p>
+				In addition, this site also uses the following open source libraries:
+			</p>
+			<ul>
+				<li><a href="http://twitter.github.com/bootstrap/">Twitter Bootstrap</a></li>
+				<li><a href="https://code.google.com/p/google-code-prettify/">Google Prettify</a></li>
+				<li><a href="http://jquery.com/">jQuery</a></li>
+				<li><a href="http://d3js.org/">D3</a></li>
+			</ul>
+		</div>
+		<div id="footer">
+			<hr>
+			Created by <a href="http://www.phildow.net">Philip Dow</a><br>
+			March 2, 2013
+		</div>
+	</div> <!-- end container -->
+	<script type="text/javascript">
+		// google analytics
+	  var _gaq = _gaq || [];
+	  _gaq.push(['_setAccount', 'UA-32113878-1']);
+	  _gaq.push(['_setDomainName', 'phildow.net']);
+	  _gaq.push(['_trackPageview']);
+
+	  (function() {
+	    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+	    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+	    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+	  })();
+	</script>
+	<script>
+	  !function ($) {
+	    $(function(){
+	      window.prettyPrint && prettyPrint()   
+	    })
+	  }(window.jQuery)
+	</script>
+
+</body>
+</html>
