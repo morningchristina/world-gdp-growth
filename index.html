@@ -226,15 +226,15 @@
 						// added to property's name. if dest already has property prefix+name,
 						// it is overwritten
 
-						// if within is specified, the contents of source will be added
-						// to the property within on destination and not to destination itself
+						// if pack is specified, the contents of source will be added
+						// to the property pack on destination and not to destination itself
 
 						// runs O(n^2) ~ improvements?
 
 						var sourceKey = (options||{}).sourceKey || "id";
 						var destKey = (options||{}).destKey || "id";
 						var prefix = (options||{}).prefix || "_";
-						var within = (options||{}).within;
+						var pack = (options||{}).pack;
 
 						var results = [];
 
@@ -258,11 +258,11 @@
 							}
 
 							// if we are grouping the source properties under an attribute
-							if ( within ) target = subgroup;
+							if ( pack ) target = subgroup;
 							else target = combination;
 
 							// copy source into combined object if we found one
-							pair = source.objectWithProperty(sourceKey,this[i][destKey]);
+							pair = source.simpleWhere(sourceKey,this[i][destKey]);
 							if ( typeof pair !== 'undefined' ) {
 								for ( prop in pair ) {
 									if ( pair.hasOwnProperty(prop) ) {
@@ -279,10 +279,10 @@
 
 							// adjoin the subgroup if instructed, but only if not empty, otherwise
 							// leave undefined. yes yes, factor or use underscore
-							if ( within ) {
+							if ( pack ) {
 								var empty = true;
 								for (var key in target ) { if (target.hasOwnProperty(key)) { empty = false; break; } }
-								if (!empty) combination[within] = target;
+								if (!empty) combination[pack] = target;
 							}
 
 							results.push(combination);
@@ -290,7 +290,7 @@
 						return results;
 					});
 
-				Array.prototype.objectWithProperty || (Array.prototype.objectWithProperty =
+				Array.prototype.simpleWhere || (Array.prototype.simpleWhere =
 					function(property,value) {
 						var result = undefined;
 						for ( var i = 0; i < this.length; i++ ) {
@@ -334,7 +334,7 @@
 
 			  // state
 				var year = 1986,
-						country,
+						selectedCountry,
 						centered;
 
 				var w = 960,
@@ -343,20 +343,16 @@
         		timelineYMargin = 30;
 
         // chart components
-        var data,
-      			combinedData,
+        var combinedData,
         		gdp,
         		timeline,
         		timeRange,
         		locator,
         		legend;
 
-        var byName;
-
-       	var growthIn,
-       			countryGrowthMap,
-						countryCodesMap;
-
+        var byRegion,
+       		 	byName;
+        
         var projection = d3.geo.mercator()
 		        .translate([480, 300])
 		        .scale(960);
@@ -368,20 +364,22 @@
 				    .domain([-8, 0, 8])
 				    .range(["#de1f2e", "#e4e4e4", "#0ca454"]);
 
-				// growthIn is initalized once the data is loaded
+				var growthIn = function(obj,year) {
+					return obj.gdp ? obj.gdp[year] : undefined;
+				} 
 
        	var growthLabel = function(d,y) {
-       		var growth = growthIn(d.id,y);
+       		var growth = growthIn(d,y);
 					if (typeof growth === 'undefined' || growth.length == 0 ) {
 						return d.properties.name + ": " + "Unavailable"
 					}
        		return d.properties.name + ": " 
-       			+ String(Number(growthIn(d.id,y)).toFixed(1)) 
+       			+ String(Number(growthIn(d,y)).toFixed(1)) 
        			+ "%";
        	}
 
        	var growthColor = function(d,y) {
-       		var growth = growthIn(d.id,y);
+       		var growth = growthIn(d,y);
 					if (typeof growth === 'undefined' || growth.length == 0 ) {
 						return "url(#undefined)"; // webkit doesn't handle patterns well
 						//return '#e4e4e4';
@@ -444,35 +442,26 @@
 		      .csv('codes', 'country-codes.csv')
 		      .csv('gdp', 'world-gdp-growth.csv')
 		      .onload(function(thegoods) {
-		      	data = thegoods;
-
+		      	
 		      	combinedData = thegoods.countries.features.equijoin(thegoods.codes, {
 			    		sourceKey: '2code',
 							destKey: 'id'
 			    	}).equijoin(thegoods.gdp, {
 			    		sourceKey: 'Country Code',
 			    		destKey: '3code',
-			    		within: 'gdp'
+			    		pack: 'gdp'
 			    	});
 
+			    	// two slightly different approaches
+			    	byRegion = thegoods.gdp.slice(0,32);
 			    	byName = (function() {
 			    		var rez = {};
 			    		combinedData.forEach(function(d) {
-			    			rez[d.properties.name] = d;
+			    			rez[d.properties.name.toLowerCase()] = d;
 			    		});
 			    		return rez;
 			    	})();
 
-		      	console.log(data, data.countries.features.length);
-		      	console.log(combinedData, combinedData.length);
-		      	console.log(byName);
-		      
-						countryGrowthMap = createCountyGrowthMap(data.gdp)
-						countryCodesMap = createCountryCodesMap(data.codes);
-						growthIn = function(country,year) {
-							return countryGrowthMap(countryCodesMap(country),year);
-						} 
-						
 						timeRange = makeRange(1961,2011); // temp hardcoded
 						tx.domain(d3.extent(timeRange, function(d) { return d; }));
 
@@ -491,6 +480,7 @@
 									.append("title")
 										.text(function(d) { return growthLabel(d,year); });
 
+						// the rest of the code here prepares the custom interface
 						// the timeline
 
 						timeline = svg.append('g')
@@ -665,9 +655,7 @@
 								.text('n/a');
 
 					 	// prep typeahead for country search
-					 	// really we want to map this from the visible countries 
-					 	// to the country codes to the country names
-
+					 	
 					 	$('.search-query').typeahead({
 					 		source: combinedData.map(function(d) { 
 					 			return d.properties.name; 
@@ -677,14 +665,13 @@
 					 	// update the info display
 
 						updateGlobalInfo(year);
-						updateCountryInfo(country,year);
+						updateCountryInfo(selectedCountry,year);
 						d3.select('#info').style('display','block');
 
 						// but lets show some instructions, shall we?
 
 						$('.i-country-gdp').text($('#instructions').text());
 					 	
-					 			
 				}); // end d3.loadData
 
 				function timeclick(d) {
@@ -693,14 +680,12 @@
 				}
 
 				function mapclick(d) {
-					var countryCode = countryCodeRecordForProperty('2code',d.id);
-					updateCountryInfo(countryCode?countryCode:undefined,year);
-				  country = countryCode;
+					updateCountryInfo(d,year);
+				  selectedCountry = d;
 				}
 
 				function mapdblclick(d) {
 				  // Source: http://bl.ocks.org/mbostock/2206590
-				  
 				  // why is the adjustment 120/60 necessary? ~20-25% of translation
 				  var x = 0,
 				      y = 0,
@@ -724,8 +709,8 @@
 				      .duration(1000)
 				      .attr("transform", "scale(" + k + ")translate(" + x + "," + y + ")");
 
-				  country = d ? countryCodeRecordForProperty('2code',d.id) : undefined;
-				  updateCountryInfo(country?country:undefined,year);
+				  updateCountryInfo(d,year);
+				  selectedCountry = d;
 				}
 
 				function navigatePrevious() {
@@ -739,31 +724,6 @@
 					transitionToYear(++year);
 					return false;
 				}
-
-				function createCountryCodesMap(codes) {
-					var code2 = codes.map(function(c){ return c['2code'] });
-					var code3 = codes.map(function(c){ return c['3code'] });
-					var hash = objectify(code2,code3);
-					return function(c2) {
-						return hash[c2];
-					}
-				}
-
-				function createCountyGrowthMap(growth) {
-					var code3 = growth.map(function(c){ return c['Country Code'] });
-					var hash = objectify(code3,growth);
-					return function(c3,year) {
-						if ( typeof hash[c3] === 'undefined' ) {
-							return undefined;
-						}
-						if ( typeof year == 'undefined' ) {
-							return hash[c3];
-						}
-						return hash[c3][year];
-					}
-				}
-
-				// interface
 
 				function transitionToYear(y) {
 					// delay the map transition to set a starting value for undefined
@@ -806,42 +766,35 @@
 				}
 
 				$('.form-search').submit(function() {
-					//var countryCode = countryCodeRecordForProperty('name',
-					//	$('.search-query').val());
-					var obj = byName[$('.search-query').val()];
-					var countryCode = obj.id;
-
-					if ( country == countryCode && typeof country !== 'undefined' ) {
+					var name = $('.search-query').val().toLowerCase();
+					var obj = byName[name];
+					if ( selectedCountry == obj && typeof selectedCountry !== 'undefined' ) {
 						// on 2nd+ search for same item, zoom in and out
-						mapdblclick(featuresForCountry(countryCode['2code']));
+						mapdblclick(obj);
 					}
-					revealCountry(countryCode);
+					revealCountry(obj);
 					return false;
 				});
 
 				$('.search-query').on('change', function (e) { 
-					var countryCode = countryCodeRecordForProperty('name',this.value);
-					revealCountry(countryCode);
+					var name = $('.search-query').val().toLowerCase();
+					var obj = byName[name];
+					revealCountry(obj);
 					return false;
 				});
 
-				function revealCountry(countryCode) {
+				function revealCountry(obj) {
 					var x,y,opacity;
 					
-					var features = countryCode ? featuresForCountry(countryCode['2code'])
-						: undefined;
+					var features = obj;
 					
-					if ( typeof countryCode === 'undefined' ) {
+					if ( typeof obj === 'undefined' ) {
 						// clear the selection
 						x = y = -10;
 						opacity = 0;
-					}
-					else if ( typeof features === 'undefined' ) {
-						// show an error
-						console.log("no features for ", name);
 					} else {
 						// center on the country
-						var centroid = path.centroid(features);
+						var centroid = path.centroid(obj);
 				    x = centroid[0];
 				    y = centroid[1];
 				    opacity = 0.8;
@@ -860,40 +813,15 @@
 				    	.style('opacity',opacity);
 				   }
 
-				   updateCountryInfo(countryCode?countryCode:undefined,year);
-				   country = countryCode;
-				}
-
-				function countryCodeRecordForProperty(property,value) {
-					var country = undefined;
-					if ( typeof value !== 'undefined' ) {
-						for ( var i = 0; i < data.codes.length; i++ ) {
-							if ( data.codes[i][property] == value ) {
-								country = data.codes[i];
-								break;
-							}
-						}
-					}
-					return country;
-				}
-
-				function featuresForCountry(code) {
-					var features = undefined;
-					if ( typeof code !== 'undefined' ) {
-						for ( var i = 0; i < data.countries.features.length; i++ ) {
-							if ( data.countries.features[i].id == code ) {
-								features = data.countries.features[i];
-								break;
-							}
-						}
-					}
-					return features;
+				   updateCountryInfo(obj,year);
+				   selectedCountry = obj;
 				}
 
 				function updateGlobalInfo(y) {
-					var growth = String(Number(countryGrowthMap('WLD',y)).toFixed(1));
+					var globalGDP = byRegion.simpleWhere('Country Code', 'WLD');
+					var growth = Number(globalGDP[y]).toFixed(1);
 					$('.i-year').text("Year: "+String(y));
-					$('.i-global-gdp').text("Global GDP: "+growth+"%");
+					$('.i-global-gdp').text("Global GDP: "+String(growth)+"%");
 				}
 
 				function updateCountryInfo(c,y) {
@@ -904,9 +832,8 @@
 						$('.i-country-mean').text('');
 						$('.i-period').text('');
 					} else {
-						var record = countryGrowthMap(c['3code']);
-						var allyears = record ? availableDataForCountry(record) : [];
-						if ( typeof record === 'undefined' || allyears.length == 0 ) {
+						var allyears = availableDataForCountry(c);
+						if ( !allyears || allyears.length == 0 ) {
 							// no gdp data available
 							$('.i-country').text(c.name);
 							$('.i-country-gdp').text('No data available');
@@ -914,7 +841,7 @@
 							$('.i-period').text('');
 						} else {
 							// data for country
-							var growth = record[y];
+							var growth = c.gdp[y];
 							if (typeof growth === 'undefined' || growth.length == 0 ) {
 								growth = 'n/a';
 							} else {
@@ -925,7 +852,7 @@
 							mean = d3.mean(allyears, function(d) { return d.growth; });
 							mean = mean.toFixed(1);
 
-							$('.i-country').text(record['Country Name']);
+							$('.i-country').text(c.name);
 							$('.i-country-gdp').text("GDP: "+growth);
 							$('.i-country-mean').text('Mean: '+mean+"%");
 							$('.i-period').text('('+extent[0]+'-'+extent[1]+')');
@@ -933,20 +860,21 @@
 					}
 				}
 
-				function availableDataForCountry(record) {
+				function availableDataForCountry(obj) {
+					if ( !obj || !obj.gdp ) return undefined;
 					var available = [];
-					for (var property in record) {
-						if ( !record.hasOwnProperty(property) )
+					for (var property in obj.gdp) {
+						if ( !obj.gdp.hasOwnProperty(property) )
 							continue;
 						if ( isNaN(Number(property)) )
 							continue;
-						if ( record[property].length == 0 )
+						if ( obj.gdp[property].length == 0 )
 							continue;
-						if ( isNaN(Number(record[property])) )
+						if ( isNaN(Number(obj.gdp[property])) )
 							continue;
 						available.push({
 							year: property,
-							growth: record[property]
+							growth: obj.gdp[property]
 						});
 					}
 					return available;
