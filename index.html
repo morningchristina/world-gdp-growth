@@ -215,6 +215,93 @@
 	        return loader;
 	      };
 
+	      Array.prototype.equijoin || (Array.prototype.equijoin = 
+					function(source,options) {
+						// add the contents in source to destination (copy of this) where
+						// source.(options.sourceKey) = destination.(options.destKey)
+						// first match only is used
+
+						// when adding properties to destination from source,
+						// if destination already has that property, prefix is
+						// added to property's name. if dest already has property prefix+name,
+						// it is overwritten
+
+						// if within is specified, the contents of source will be added
+						// to the property within on destination and not to destination itself
+
+						// runs O(n^2) ~ improvements?
+
+						var sourceKey = (options||{}).sourceKey || "id";
+						var destKey = (options||{}).destKey || "id";
+						var prefix = (options||{}).prefix || "_";
+						var within = (options||{}).within;
+
+						var results = [];
+
+						for ( var i = 0; i < this.length; i++ ) {
+							var combination = {};
+							var subgroup = {};
+							var target;
+							var pair;
+								
+							// always copy this into combined object
+							for ( prop in this[i] ) {
+								if ( this[i].hasOwnProperty(prop) ) {
+									combination[prop] = this[i][prop];
+								}
+							}
+
+							// if this has no property for destKey, don't look for a join
+							if ( typeof this[i][destKey] === 'undefined') {
+								results.push(combination);
+								continue;
+							}
+
+							// if we are grouping the source properties under an attribute
+							if ( within ) target = subgroup;
+							else target = combination;
+
+							// copy source into combined object if we found one
+							pair = source.objectWithProperty(sourceKey,this[i][destKey]);
+							if ( typeof pair !== 'undefined' ) {
+								for ( prop in pair ) {
+									if ( pair.hasOwnProperty(prop) ) {
+										if ( prop == sourceKey ) {
+											; // continue
+										} else if ( target.hasOwnProperty(prop) ) {
+											target[prefix+prop] = pair[prop];
+										} else {
+											target[prop] = pair[prop];
+										}
+									}
+								}
+							}
+
+							// adjoin the subgroup if instructed, but only if not empty, otherwise
+							// leave undefined. yes yes, factor or use underscore
+							if ( within ) {
+								var empty = true;
+								for (var key in target ) { if (target.hasOwnProperty(key)) { empty = false; break; } }
+								if (!empty) combination[within] = target;
+							}
+
+							results.push(combination);
+						}
+						return results;
+					});
+
+				Array.prototype.objectWithProperty || (Array.prototype.objectWithProperty =
+					function(property,value) {
+						var result = undefined;
+						for ( var i = 0; i < this.length; i++ ) {
+							if ( this[i][property] == value ) {
+								result = this[i];
+								break;
+							}
+						}
+						return result;
+					});
+
 				function objectify(list, values) {
 					// Source: http://underscorejs.org/
 					
@@ -257,11 +344,14 @@
 
         // chart components
         var data,
+      			combinedData,
         		gdp,
         		timeline,
         		timeRange,
         		locator,
         		legend;
+
+        var byName;
 
        	var growthIn,
        			countryGrowthMap,
@@ -356,6 +446,27 @@
 		      .onload(function(thegoods) {
 		      	data = thegoods;
 
+		      	combinedData = thegoods.countries.features.equijoin(thegoods.codes, {
+			    		sourceKey: '2code',
+							destKey: 'id'
+			    	}).equijoin(thegoods.gdp, {
+			    		sourceKey: 'Country Code',
+			    		destKey: '3code',
+			    		within: 'gdp'
+			    	});
+
+			    	byName = (function() {
+			    		var rez = {};
+			    		combinedData.forEach(function(d) {
+			    			rez[d.properties.name] = d;
+			    		});
+			    		return rez;
+			    	})();
+
+		      	console.log(data, data.countries.features.length);
+		      	console.log(combinedData, combinedData.length);
+		      	console.log(byName);
+		      
 						countryGrowthMap = createCountyGrowthMap(data.gdp)
 						countryCodesMap = createCountryCodesMap(data.codes);
 						growthIn = function(country,year) {
@@ -368,7 +479,7 @@
 						// the map - yup, that's it
 
 						gdp = g.selectAll('.gdp')
-								.data(data.countries.features)
+								.data(combinedData)
 								.enter().append("path")
 									.attr('id', function(d) { return d.id; })
 									.attr('class','gdp')	
@@ -558,7 +669,9 @@
 					 	// to the country codes to the country names
 
 					 	$('.search-query').typeahead({
-					 		source: data.codes.map(function(d) { return d.name; })
+					 		source: combinedData.map(function(d) { 
+					 			return d.properties.name; 
+					 		})
 					 	});
 
 					 	// update the info display
@@ -693,8 +806,11 @@
 				}
 
 				$('.form-search').submit(function() {
-					var countryCode = countryCodeRecordForProperty('name',
-						$('.search-query').val());
+					//var countryCode = countryCodeRecordForProperty('name',
+					//	$('.search-query').val());
+					var obj = byName[$('.search-query').val()];
+					var countryCode = obj.id;
+
 					if ( country == countryCode && typeof country !== 'undefined' ) {
 						// on 2nd+ search for same item, zoom in and out
 						mapdblclick(featuresForCountry(countryCode['2code']));
